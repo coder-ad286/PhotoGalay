@@ -3,7 +3,8 @@ const { generateJWT } = require('../helper/jwt');
 const users = require('../model/userModel');
 const ErrorHandler = require('../utils/ErrorHandler')
 const crypto = require('crypto');
-const catchAsyncError = require('../middleware/async')
+const catchAsyncError = require('../middleware/async');
+const bcrypt = require('bcrypt');
 
 
 exports.register=catchAsyncError(async(req,res,next)=>{
@@ -19,10 +20,13 @@ exports.register=catchAsyncError(async(req,res,next)=>{
         return next(new ErrorHandler("Entered Email Is Already Registered",400))
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password,salt);
+
     await users.create({
         name,
         email:username,
-        password
+        password : hashedPassword
     })
 
 
@@ -46,8 +50,7 @@ exports.login=catchAsyncError(async(req,res,next)=>{
     if(!user){
         return next(new ErrorHandler("Invalid Username or Password...!",400))
     }
-
-    if(!(user.password===password)){
+    if(!(await bcrypt.compare(password,user.password))){
         return next(new ErrorHandler("Invalid Username or Password...!",400))
     }
 
@@ -86,7 +89,6 @@ exports.forgotPassword=catchAsyncError(async(req,res,next)=>{
 
     //2.GENERATE TOKEN
     const resetToken = user.createResetPasswordToken();
-    console.log(resetToken);
     await user.save({validateBeforeSave:false});
 
     //3.SEND TOKEN TO EMAIL
@@ -109,7 +111,6 @@ exports.forgotPassword=catchAsyncError(async(req,res,next)=>{
         user.passwordResetExpires=undefined;
         await user.save({validateBeforeSave:false});
 
-        console.log(error);
         return next(new ErrorHandler("There was an sending password reset email ",500))
     }
 
